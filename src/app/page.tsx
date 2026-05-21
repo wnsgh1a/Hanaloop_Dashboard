@@ -1,101 +1,134 @@
-import Image from "next/image";
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
+
+import { ActivityTable } from "@/components/dashboard/ActivityTable";
+import { DashboardSkeleton } from "@/components/dashboard/DashboardSkeleton";
+import { EmissionsChart } from "@/components/dashboard/EmissionsChart";
+import { ErrorBanner } from "@/components/dashboard/ErrorBanner";
+import { KpiSummary } from "@/components/dashboard/KpiSummary";
+import { Sidebar } from "@/components/dashboard/Sidebar";
+import {
+  computeChartSlices,
+  computeKpiSummary,
+  filterEmissions,
+  getUniquePeriods,
+  type CategoryFilter,
+  type PeriodFilter,
+} from "@/lib/emission-stats";
+import {
+  getEmissionErrorMessage,
+  useEmissionStore,
+} from "@/store/useEmissionStore";
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+  const { emissions, isLoading, error, fetchEmissions } = useEmissionStore(
+    useShallow((state) => ({
+      emissions: state.emissions,
+      isLoading: state.isLoading,
+      error: state.error,
+      fetchEmissions: state.fetchEmissions,
+    })),
+  );
+
+  useEffect(() => {
+    void fetchEmissions();
+  }, [fetchEmissions]);
+
+  const handleRetry = useCallback(() => {
+    void fetchEmissions();
+  }, [fetchEmissions]);
+
+  const errorMessage = getEmissionErrorMessage(error);
+  const hasCachedData = emissions.length > 0;
+  const isInitialLoading = isLoading && !hasCachedData;
+
+  const periods = useMemo(() => getUniquePeriods(emissions), [emissions]);
+
+  const filteredEmissions = useMemo(
+    () =>
+      filterEmissions(emissions, {
+        period: periodFilter,
+        category: categoryFilter,
+      }),
+    [emissions, periodFilter, categoryFilter],
+  );
+
+  const kpi = useMemo(
+    () => computeKpiSummary(filteredEmissions),
+    [filteredEmissions],
+  );
+
+  const chartSlices = useMemo(
+    () => computeChartSlices(filteredEmissions),
+    [filteredEmissions],
+  );
+
+  return (
+    <div className="flex min-h-screen bg-slate-100 text-slate-900">
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200 bg-white/90 px-4 backdrop-blur sm:px-6 lg:px-8">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 lg:hidden"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="메뉴 열기"
+            >
+              메뉴
+            </button>
+            <div>
+              <h1 className="text-lg font-semibold">PCF 탄소 배출 대시보드</h1>
+              <p className="hidden text-xs text-slate-500 sm:block">
+                활동 데이터 × 배출계수 기반 kgCO₂e 분석
+              </p>
+            </div>
+          </div>
+          {isLoading && hasCachedData ? (
+            <span className="text-xs font-medium text-emerald-700">
+              데이터 갱신 중…
+            </span>
+          ) : null}
+        </header>
+
+        <main className="flex-1 space-y-6 p-4 sm:p-6 lg:p-8">
+          {errorMessage ? (
+            <ErrorBanner
+              message={errorMessage}
+              hasCachedData={hasCachedData}
+              isRetrying={isLoading}
+              onRetry={handleRetry}
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          ) : null}
+
+          {isInitialLoading ? (
+            <DashboardSkeleton />
+          ) : (
+            <>
+              <KpiSummary kpi={kpi} />
+
+              <div className="grid gap-6 xl:grid-cols-2">
+                <ActivityTable
+                  rows={filteredEmissions}
+                  periods={periods}
+                  periodFilter={periodFilter}
+                  categoryFilter={categoryFilter}
+                  onPeriodChange={setPeriodFilter}
+                  onCategoryChange={setCategoryFilter}
+                />
+                <EmissionsChart slices={chartSlices} />
+              </div>
+            </>
+          )}
+        </main>
+      </div>
     </div>
   );
 }
