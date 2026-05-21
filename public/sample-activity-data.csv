@@ -1,0 +1,4 @@
+id,category,activityAmount,unit,period,productId
+upload-001,electricity,50,kWh,2024-Q3,PCF-C
+upload-002,plastic_raw_1,20,kg,2024-Q3,PCF-C
+upload-003,transport_truck,5.5,ton-km,2024-Q3,PCF-C

@@ -1,14 +1,19 @@
 import { create } from "zustand";
 
 import { fetchActivityEmissions } from "@/lib/api";
+import { parseActivityCsv } from "@/lib/parse-activity-csv";
+import { preprocessActivities } from "@/lib/preprocess";
 import type { ActivityEmissionDto } from "@/lib/types";
 import { ApiError } from "@/lib/types";
+
+export type CsvUploadMode = "prepend" | "replace";
 
 interface EmissionState {
   emissions: ActivityEmissionDto[];
   isLoading: boolean;
   error: string | ApiError | null;
   fetchEmissions: () => Promise<void>;
+  uploadCsvData: (rawText: string, mode?: CsvUploadMode) => void;
 }
 
 function toStoreError(err: unknown): string | ApiError {
@@ -60,5 +65,16 @@ export const useEmissionStore = create<EmissionState>((set, get) => ({
         ...(hasCachedEmissions ? {} : { emissions: [] }),
       });
     }
+  },
+
+  uploadCsvData: (rawText, mode = "prepend") => {
+    const records = parseActivityCsv(rawText);
+    const imported = preprocessActivities(records);
+    const current = get().emissions;
+
+    set({
+      emissions: mode === "replace" ? imported : [...imported, ...current],
+      error: null,
+    });
   },
 }));

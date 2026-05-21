@@ -1,9 +1,10 @@
 "use client";
 
+import { CsvUploader } from "@/components/dashboard/CsvUploader";
+
 const NAV_ITEMS = [
   { id: "dashboard", label: "PCF 대시보드", active: true },
   { id: "activities", label: "활동 데이터", active: false },
-  { id: "upload", label: "데이터 업로드", active: false, disabled: true },
 ] as const;
 
 interface SidebarProps {
@@ -44,26 +45,23 @@ export function Sidebar({ open, onClose }: SidebarProps) {
             <button
               key={item.id}
               type="button"
-              disabled={"disabled" in item && item.disabled}
               className={[
                 "flex w-full items-center rounded-lg px-3 py-2.5 text-left text-sm transition-colors",
                 item.active
                   ? "bg-emerald-600/20 font-medium text-emerald-300"
                   : "text-slate-300 hover:bg-slate-800",
-                "disabled" in item && item.disabled
-                  ? "cursor-not-allowed opacity-40"
-                  : "",
               ].join(" ")}
             >
               {item.label}
-              {"disabled" in item && item.disabled ? (
-                <span className="ml-auto text-[10px] text-slate-500">준비중</span>
-              ) : null}
             </button>
           ))}
         </nav>
 
-        <p className="border-t border-slate-800 px-5 py-4 text-xs text-slate-500">
+        <div className="border-t border-slate-800">
+          <CsvUploader variant="compact" />
+        </div>
+
+        <p className="px-5 py-3 text-xs text-slate-500">
           제품 탄소 발자국(PCF) 시각화
         </p>
       </aside>

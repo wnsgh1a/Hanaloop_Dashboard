@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import { ActivityTable } from "@/components/dashboard/ActivityTable";
+import { CsvUploader } from "@/components/dashboard/CsvUploader";
 import { DashboardSkeleton } from "@/components/dashboard/DashboardSkeleton";
 import { EmissionsChart } from "@/components/dashboard/EmissionsChart";
 import { ErrorBanner } from "@/components/dashboard/ErrorBanner";
@@ -112,6 +113,7 @@ export default function Home() {
             <DashboardSkeleton />
           ) : (
             <>
+              <CsvUploader variant="full" />
               <KpiSummary kpi={kpi} />
 
               <div className="grid gap-6 xl:grid-cols-2">
