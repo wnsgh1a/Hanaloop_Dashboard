@@ -382,6 +382,8 @@ src/
 │   └── types.ts
 └── store/
     └── useEmissionStore.ts
+docs/
+└── openapi.json          # OpenAPI 3.0 Mock API 명세
 public/
 └── sample-activity-data.csv
 ```
@@ -403,6 +405,41 @@ public/
 | [ESLint](https://github.com/eslint/eslint) | 8.x | 린트 (dev) | MIT |
 
 **폰트**: `layout.tsx`의 Geist(local font)는 Vercel 배포 템플릿 기본 리소스를 사용합니다.
+
+---
+
+## OpenAPI (Swagger) 명세 안내
+
+| 항목 | 내용 |
+|------|------|
+| **명세 파일** | [`docs/openapi.json`](docs/openapi.json) |
+| **OpenAPI 버전** | 3.0.3 |
+| **논리 Base URL** | `http://localhost:3000/api/v1` (클라이언트 Mock; 실제 HTTP 라우트 없음) |
+
+### 엔드포인트 ↔ 클라이언트 함수
+
+| Method | Path | `operationId` | 클라이언트 구현 |
+|--------|------|---------------|-----------------|
+| `GET` | `/activities/raw` | `fetchRawActivities` | `src/lib/api.ts` → `fetchRawActivities()` |
+| `GET` | `/activities/emissions` | `fetchActivityEmissions` | `src/lib/api.ts` → `fetchActivityEmissions()` → `useEmissionStore.fetchEmissions()` |
+
+### Schema Components (`components.schemas`)
+
+| 스키마 | 용도 |
+|--------|------|
+| `ActivityCategory` | `electricity`, `plastic_raw_1`, `plastic_raw_2`, `transport_truck` |
+| `ActivityUnit` | `kWh`, `kg`, `ton-km` |
+| `EmissionFactorMap` | 카테고리별 배출계수 (0.456 / 2.3 / 3.2 / 3.5) |
+| `RawActivityRecord` | 원본 활동 데이터 (배출량 없음) |
+| `ActivityEmissionDto` | 전처리 DTO (`emissionFactor`, `emissionsKgCO2e`, `label` 포함) |
+| `ApiError` | 15% Mock 실패 응답 (`503` + `name`/`message`) |
+
+### Swagger UI / Postman에서 불러오기
+
+1. [Swagger Editor](https://editor.swagger.io/) → **File → Import file** → `docs/openapi.json`
+2. Postman → **Import** → `docs/openapi.json` → Collection 생성
+
+> CSV·엑셀 업로드는 브라우저 로컬 파싱이며 REST API 범위 밖입니다.
 
 ---
 
@@ -429,6 +466,7 @@ public/
 | GitHub public·커밋 | ⚠️ | **제출자가 저장소 공개·push 필요** |
 | 엑셀/CSV 임포트 (보너스) | ✅ | `FileUploader` + CSV·엑셀 파서 |
 | Docker Compose (보너스) | ✅ | `docker compose up --build` → :3000 |
+| OpenAPI 명세 (보너스) | ✅ | `docs/openapi.json` — Swagger/Postman Import |
 
 ---
 

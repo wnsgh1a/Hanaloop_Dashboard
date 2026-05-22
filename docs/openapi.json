@@ -1,0 +1,358 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "HanaLoop PCF Dashboard — Mock Activity API",
+    "version": "1.0.0",
+    "description": "PCF(제품 탄소 발자국) 활동 데이터 Mock API 명세입니다.\n\n실제 HTTP 서버는 없으며, 프론트엔드 `src/lib/api.ts`의 `fetchRawActivities`·`fetchActivityEmissions`가 이 계약을 **클라이언트 인메모리**로 구현합니다.\n\n### Mock 동작 (requirements.md)\n- **지연**: 200~800ms (`jitter`)\n- **실패**: 15% 확률 (`maybeFail`) → `ApiError` / HTTP 503\n- **배출량 계산**: `emissionsKgCO2e = activityAmount × emissionFactor` (kgCO₂e)\n",
+    "contact": {
+      "name": "HanaLoop Frontend Assignment"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000/api/v1",
+      "description": "논리적 Mock Base URL (클라이언트 시뮬레이션; 실제 라우트 미구현)"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Activities",
+      "description": "활동 데이터 조회 (원본 / 배출량 DTO)"
+    },
+    {
+      "name": "PCF",
+      "description": "제품 탄소 발자국 도메인 스키마·배출계수"
+    }
+  ],
+  "paths": {
+    "/activities/raw": {
+      "get": {
+        "tags": ["Activities"],
+        "operationId": "fetchRawActivities",
+        "summary": "원본 활동 데이터 목록 조회",
+        "description": "엑셀/CSV 원본과 동일한 `RawActivityRecord` 배열을 반환합니다. 배출량(`emissionsKgCO2e`)은 포함되지 않습니다.\n\n클라이언트 구현: `fetchRawActivities()` in `src/lib/api.ts`.",
+        "responses": {
+          "200": {
+            "description": "조회 성공",
+            "headers": {
+              "X-Mock-Delay-Ms": {
+                "description": "시뮬레이션된 네트워크 지연(ms). 200~800 범위.",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 200,
+                  "maximum": 800,
+                  "example": 450
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RawActivityRecordList"
+                },
+                "examples": {
+                  "sample": {
+                    "summary": "과제 시드 데이터 일부",
+                    "value": [
+                      {
+                        "id": "act-001",
+                        "category": "electricity",
+                        "activityAmount": 110,
+                        "unit": "kWh",
+                        "period": "2024-Q1",
+                        "productId": "PCF-A"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/SimulatedApiFailure"
+          }
+        },
+        "x-mock": {
+          "jitterMsMin": 200,
+          "jitterMsMax": 800,
+          "failureRate": 0.15,
+          "clientFunction": "fetchRawActivities"
+        }
+      }
+    },
+    "/activities/emissions": {
+      "get": {
+        "tags": ["Activities"],
+        "operationId": "fetchActivityEmissions",
+        "summary": "활동 데이터 + 탄소 배출량 DTO 목록 조회",
+        "description": "원본 활동 데이터에 배출계수를 적용해 `ActivityEmissionDto` 배열로 반환합니다.\n\n서버 측 전처리에 해당: `preprocessActivities()` (`src/lib/preprocess.ts`).\n\n클라이언트 구현: `fetchActivityEmissions()` in `src/lib/api.ts` → Zustand `fetchEmissions()`.",
+        "responses": {
+          "200": {
+            "description": "조회 및 전처리 성공",
+            "headers": {
+              "X-Mock-Delay-Ms": {
+                "description": "시뮬레이션된 네트워크 지연(ms). 200~800 범위.",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 200,
+                  "maximum": 800,
+                  "example": 520
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityEmissionDtoList"
+                },
+                "examples": {
+                  "electricityWikiExample": {
+                    "summary": "wiki.md 예시 (110 kWh × 0.456)",
+                    "value": [
+                      {
+                        "id": "act-001",
+                        "category": "electricity",
+                        "label": "전기",
+                        "activityAmount": 110,
+                        "unit": "kWh",
+                        "emissionFactor": 0.456,
+                        "emissionsKgCO2e": 50.16,
+                        "period": "2024-Q1",
+                        "productId": "PCF-A"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/SimulatedApiFailure"
+          }
+        },
+        "x-mock": {
+          "jitterMsMin": 200,
+          "jitterMsMax": 800,
+          "failureRate": 0.15,
+          "clientFunction": "fetchActivityEmissions"
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ActivityCategory": {
+        "type": "string",
+        "description": "PCF 활동 유형 (requirements.md 4종)",
+        "enum": [
+          "electricity",
+          "plastic_raw_1",
+          "plastic_raw_2",
+          "transport_truck"
+        ],
+        "x-enum-descriptions": {
+          "electricity": "전기 (kWh)",
+          "plastic_raw_1": "원소재 플라스틱 1 (kg)",
+          "plastic_raw_2": "원소재 플라스틱 2 (kg)",
+          "transport_truck": "운송 트럭 (ton-km)"
+        }
+      },
+      "ActivityUnit": {
+        "type": "string",
+        "description": "활동 데이터 단위",
+        "enum": ["kWh", "kg", "ton-km"]
+      },
+      "EmissionFactorMap": {
+        "type": "object",
+        "description": "카테고리별 배출계수 (kgCO₂e / 단위). `src/lib/preprocess.ts` EMISSION_FACTORS.",
+        "additionalProperties": false,
+        "properties": {
+          "electricity": {
+            "type": "number",
+            "format": "double",
+            "example": 0.456
+          },
+          "plastic_raw_1": {
+            "type": "number",
+            "format": "double",
+            "example": 2.3
+          },
+          "plastic_raw_2": {
+            "type": "number",
+            "format": "double",
+            "example": 3.2
+          },
+          "transport_truck": {
+            "type": "number",
+            "format": "double",
+            "example": 3.5
+          }
+        },
+        "required": [
+          "electricity",
+          "plastic_raw_1",
+          "plastic_raw_2",
+          "transport_truck"
+        ]
+      },
+      "RawActivityRecord": {
+        "type": "object",
+        "description": "Mock DB / 엑셀 원본 활동 데이터 (배출량 미계산)",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "category",
+          "activityAmount",
+          "unit",
+          "period"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "활동 레코드 고유 ID",
+            "example": "act-001"
+          },
+          "category": {
+            "$ref": "#/components/schemas/ActivityCategory"
+          },
+          "activityAmount": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0,
+            "description": "활동 데이터량",
+            "example": 110
+          },
+          "unit": {
+            "$ref": "#/components/schemas/ActivityUnit"
+          },
+          "period": {
+            "type": "string",
+            "description": "보고 기간",
+            "example": "2024-Q1"
+          },
+          "productId": {
+            "type": "string",
+            "description": "제품/공정 식별자 (선택)",
+            "example": "PCF-A"
+          }
+        }
+      },
+      "RawActivityRecordList": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/RawActivityRecord"
+        }
+      },
+      "ActivityEmissionDto": {
+        "type": "object",
+        "description": "전처리 완료 DTO. 공식: emissionsKgCO2e = activityAmount × emissionFactor",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "category",
+          "label",
+          "activityAmount",
+          "unit",
+          "emissionFactor",
+          "emissionsKgCO2e",
+          "period"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "act-001"
+          },
+          "category": {
+            "$ref": "#/components/schemas/ActivityCategory"
+          },
+          "label": {
+            "type": "string",
+            "description": "UI 표시용 한글 라벨",
+            "example": "전기"
+          },
+          "activityAmount": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0,
+            "example": 110
+          },
+          "unit": {
+            "$ref": "#/components/schemas/ActivityUnit"
+          },
+          "emissionFactor": {
+            "type": "number",
+            "format": "double",
+            "description": "kgCO₂e per unit (카테고리별 상수)",
+            "example": 0.456
+          },
+          "emissionsKgCO2e": {
+            "type": "number",
+            "format": "double",
+            "description": "탄소 배출량 (kgCO₂e), 소수 둘째 자리 반올림",
+            "example": 50.16
+          },
+          "period": {
+            "type": "string",
+            "example": "2024-Q1"
+          },
+          "productId": {
+            "type": "string",
+            "example": "PCF-A"
+          }
+        }
+      },
+      "ActivityEmissionDtoList": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ActivityEmissionDto"
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "description": "Mock API 15% 실패 모델. 클라이언트 `ApiError` 클래스(`src/lib/types.ts`)와 동일 의미.",
+        "additionalProperties": false,
+        "required": ["name", "message"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": ["ApiError"],
+            "example": "ApiError"
+          },
+          "message": {
+            "type": "string",
+            "example": "Mock API: simulated network failure"
+          }
+        }
+      }
+    },
+    "responses": {
+      "SimulatedApiFailure": {
+        "description": "Mock 네트워크 실패 (약 15% 확률). 클라이언트는 예외를 throw하고 stale-while-revalidate 캐시를 유지할 수 있음.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            },
+            "examples": {
+              "default": {
+                "value": {
+                  "name": "ApiError",
+                  "message": "Mock API: simulated network failure"
+                }
+              }
+            }
+          }
+        },
+        "headers": {
+          "X-Mock-Failure": {
+            "description": "시뮬레이션 실패 응답임을 표시",
+            "schema": {
+              "type": "boolean",
+              "example": true
+            }
+          }
+        }
+      }
+    }
+  }
+}
