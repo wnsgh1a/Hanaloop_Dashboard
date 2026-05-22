@@ -1,0 +1,47 @@
+# Dependencies & build output
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.next
+out
+dist
+build
+
+# Git & IDE
+.git
+.gitignore
+.github
+.cursor
+.vscode
+*.swp
+*.swo
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Tests & docs (런타임 불필요)
+coverage
+**/*.test.ts
+**/*.test.tsx
+vitest.config.ts
+docs
+checklist.md
+agent.md
+requirements.md
+wiki.md
+
+# Docker (컨텍스트 중복 방지)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Misc
+README.md
+*.md
+.DS_Store
+Thumbs.db
+terminals

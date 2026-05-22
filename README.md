@@ -183,17 +183,81 @@ KPI·차트 계산을 React 밖 순수 함수로 두어, 동일 입력에 대한
 
 ---
 
+## 데이터 모델 (ERD / 스키마)
+
+프론트엔드 단일 저장소이므로 DB 테이블 대신 **도메인 타입** 관계를 ERD로 표현했습니다.
+
+```mermaid
+erDiagram
+  RawActivityRecord {
+    string id PK
+    string category
+    number activityAmount
+    string unit
+    string period
+    string productId
+  }
+  ActivityEmissionDto {
+    string id PK
+    string category
+    string label
+    number activityAmount
+    string unit
+    number emissionFactor
+    number emissionsKgCO2e
+    string period
+    string productId
+  }
+  RawActivityRecord ||--o| ActivityEmissionDto : "preprocessActivities()"
+  ActivityEmissionDto }o--|| EmissionStore : "emissions[]"
+```
+
+**배출계수 (requirements.md)**
+
+| category | unit | emissionFactor (kgCO₂e) |
+|----------|------|-------------------------|
+| electricity | kWh | 0.456 |
+| plastic_raw_1 | kg | 2.3 |
+| plastic_raw_2 | kg | 3.2 |
+| transport_truck | ton-km | 3.5 |
+
+---
+
+## Docker Compose를 활용한 실행법 (1단계)
+
+> Node.js 설치 없이 컨테이너만으로 실행합니다. (Docker Desktop 또는 Docker Engine + Compose v2 필요)
+
+```bash
+docker compose up --build
+```
+
+브라우저에서 [http://localhost:3000](http://localhost:3000) 접속.
+
+| 항목 | 내용 |
+|------|------|
+| 포트 | `3000:3000` |
+| 이미지 | `node:20-alpine` Multi-stage (`deps` → `builder` → `runner`) |
+| 번들 | Next.js `output: "standalone"` — 런타임에 `node_modules` 미포함 |
+| 볼륨 | `./public` → `/app/public` (읽기 전용, 샘플 CSV 교체용) |
+
+백그라운드 실행: `docker compose up --build -d`  
+종료: `docker compose down`
+
+---
+
 ## 로컬 실행 가이드 (5단계)
 
-> **요구 사항**: Node.js 18.17 이상 권장, npm 사용 기준
+> **요구 사항**: Node.js 18.17 이상 권장
+
+### npm (기본)
 
 | 단계 | 명령 / 행동 |
 |:----:|-------------|
 | **1** | 저장소 클론 또는 압축 해제 후 프로젝트 루트로 이동 |
 | **2** | `npm install` — 의존성 설치 |
-| **3** | `npm run dev` — 개발 서버 기동 |
+| **3** | `npm run dev` — 개발 서버 기동 (또는 아래 프로덕션 경로) |
 | **4** | 브라우저에서 [http://localhost:3000](http://localhost:3000) 접속 |
-| **5** | (선택) `public/sample-activity-data.csv`를 대시보드 상단 업로드 영역에 드래그하여 CSV 임포트 확인 |
+| **5** | (선택) `public/sample-activity-data.csv`를 업로드 영역에 드래그하여 CSV 임포트 확인 |
 
 ```bash
 cd hanaloop-dashboard
@@ -201,19 +265,65 @@ npm install
 npm run dev
 ```
 
+### yarn (체크리스트 호환 — `yarn start`)
+
+```bash
+cd hanaloop-dashboard
+corepack enable          # Node 18+ 내장 Yarn 활성화 (최초 1회)
+yarn install
+yarn build
+yarn start               # http://localhost:3000
+```
+
+개발 모드: `yarn dev`
+
 **추가 스크립트**
 
 | 명령 | 설명 |
 |------|------|
-| `npm run build` | 프로덕션 빌드·타입 검사 |
-| `npm run start` | 빌드 결과 실행 |
-| `npm run lint` | ESLint |
+| `npm run build` / `yarn build` | 프로덕션 빌드·타입 검사 |
+| `npm run start` / `yarn start` | 빌드 결과 실행 |
+| `npm run lint` / `yarn lint` | ESLint |
+| `npm test` / `yarn test` | Vitest 단위·통합 검증 (21 tests) |
 
 **채점 시 확인 포인트**
 
 1. 첫 로드: 200~800ms 지연 후 KPI·차트 표시 (Skeleton 가능).
 2. «다시 시도»: Mock 15% 실패 시에도, 한 번 성공 후에는 차트 유지 + 에러 배너.
 3. CSV: `sample-activity-data.csv` 업로드 → KPI·테이블·차트 즉시 갱신.
+
+---
+
+## UI 실행 가이드 (스크린샷 · 영상)
+
+체크리스트의 «UI 실행 과정 안내» 항목용입니다. 제출 전 `docs/screenshots/`에 아래 화면을 캡처하거나 짧은 데모 영상을 첨부해 주세요.
+
+| # | 캡처 대상 | 확인 내용 |
+|---|-----------|-----------|
+| 1 | 대시보드 전체 | Navigation Drawer + KPI + 테이블 + 차트 |
+| 2 | 초기 Skeleton | Mock API 첫 로드 시 shimmer |
+| 3 | Error Banner + «다시 시도» | Mock 15% 실패 후 캐시 유지 UX |
+| 4 | CSV 업로드 성공 | `sample-activity-data.csv` 드래그 후 KPI 갱신 |
+| 5 | CSV 오류 메시지 | 잘못된 양식 업로드 시 amber 경고 배너 |
+
+> 영상·이미지 파일은 용량 관리를 위해 Git LFS 또는 제출 링크(드라이브 등)로 제공할 수 있습니다.
+
+---
+
+## 자동화 테스트 (기능 검증)
+
+```bash
+npm test
+# 또는: yarn test
+```
+
+| 테스트 파일 | 검증 항목 |
+|-------------|-----------|
+| `preprocess.test.ts` | PCF 공식 (110×0.456=50.16), 단위·라벨·배출계수 |
+| `parse-activity-csv.test.ts` | CSV 파싱, 한글 헤더, 오류 입력 시 `CsvParseError` |
+| `emission-stats.test.ts` | KPI 합산, `kgCO₂e` 단위 표시, 필터 |
+| `useEmissionStore.test.ts` | CSV prepend/replace, 잘못된 CSV 시 상태 불변 |
+| `api.test.ts` | `jitter` / `maybeFail` 시뮬레이션 |
 
 ---
 
@@ -304,4 +414,22 @@ public/
 
 ---
 
-**제출자 메모**: 본 README는 채점관이 **가정 → 구조 → 효율 → Trade-off → 실행 → AI 활용 → 라이선스** 순으로 한 번에 파악할 수 있도록 구성했습니다. 추가 질문이나 실행 이슈가 있으면 `npm run build` 로그와 함께 공유해 주시면 됩니다.
+## 체크리스트 자가 점검 (`checklist.md` 대응)
+
+| 항목 | 상태 | 근거 |
+|------|:----:|------|
+| PCF 계산 결과 시각화 | ✅ | KPI 카드 + Pie/Bar 차트 + 활동 테이블 |
+| 데이터 정확성·단위 표시 | ✅ | `formatKgCO2e`, 테이블 `활동량 + unit`, Vitest 21건 통과 |
+| 오류 입력 시 에러 메시지 | ✅ | CSV `CsvUploader` 경고, Mock API `ErrorBanner` |
+| README 로컬 실행 5단계 | ✅ | npm·yarn 절차 병기 |
+| README AI 도구 기록 | ✅ | «AI 에이전트 활용 기록» 절 |
+| README 시스템·설계 | ✅ | 아키텍처·상태 경계·Trade-off |
+| README ERD/다이어그램 | ✅ | Mermaid ERD + 시퀀스·플로우 |
+| UI 실행 가이드(캡처·영상) | ⚠️ | README 안내표 제공 — **제출자가 스크린샷/영상 첨부 필요** |
+| GitHub public·커밋 | ⚠️ | **제출자가 저장소 공개·push 필요** |
+| 엑셀/CSV 임포트 (보너스) | ✅ | `FileUploader` + CSV·엑셀 파서 |
+| Docker Compose (보너스) | ✅ | `docker compose up --build` → :3000 |
+
+---
+
+**제출자 메모**: 본 README는 채점관이 **가정 → 구조 → 효율 → Trade-off → 실행 → 테스트 → AI 활용 → 라이선스** 순으로 한 번에 파악할 수 있도록 구성했습니다. 추가 질문이나 실행 이슈가 있으면 `npm run build` / `npm test` 로그와 함께 공유해 주시면 됩니다.

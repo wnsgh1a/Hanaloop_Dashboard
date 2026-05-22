@@ -1,0 +1,16 @@
+services:
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hanaloop-dashboard
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      HOSTNAME: "0.0.0.0"
+      PORT: "3000"
+    volumes:
+      # 샘플 CSV 등 정적 파일을 재빌드 없이 교체 가능 (읽기 전용)
+      - ./public:/app/public:ro
+    restart: unless-stopped
