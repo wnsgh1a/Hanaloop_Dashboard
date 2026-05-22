@@ -1,18 +1,32 @@
 "use client";
 
-import { CsvUploader } from "@/components/dashboard/CsvUploader";
+import { FileUploader } from "@/components/dashboard/FileUploader";
 
-const NAV_ITEMS = [
-  { id: "dashboard", label: "PCF 대시보드", active: true },
-  { id: "activities", label: "활동 데이터", active: false },
-] as const;
+export type DashboardTab = "dashboard" | "activities";
+
+const NAV_ITEMS: { id: DashboardTab; label: string }[] = [
+  { id: "dashboard", label: "PCF 대시보드" },
+  { id: "activities", label: "활동 데이터" },
+];
 
 interface SidebarProps {
   open: boolean;
+  activeTab: DashboardTab;
+  onTabChange: (tab: DashboardTab) => void;
   onClose: () => void;
 }
 
-export function Sidebar({ open, onClose }: SidebarProps) {
+export function Sidebar({
+  open,
+  activeTab,
+  onTabChange,
+  onClose,
+}: SidebarProps) {
+  const handleTabClick = (tab: DashboardTab) => {
+    onTabChange(tab);
+    onClose();
+  };
+
   return (
     <>
       {open && (
@@ -41,24 +55,29 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         </div>
 
         <nav className="flex-1 space-y-1 p-3" aria-label="주 메뉴">
-          {NAV_ITEMS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={[
-                "flex w-full items-center rounded-lg px-3 py-2.5 text-left text-sm transition-colors",
-                item.active
-                  ? "bg-emerald-600/20 font-medium text-emerald-300"
-                  : "text-slate-300 hover:bg-slate-800",
-              ].join(" ")}
-            >
-              {item.label}
-            </button>
-          ))}
+          {NAV_ITEMS.map((item) => {
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                aria-current={isActive ? "page" : undefined}
+                onClick={() => handleTabClick(item.id)}
+                className={[
+                  "flex w-full items-center rounded-lg px-3 py-2.5 text-left text-sm transition-colors",
+                  isActive
+                    ? "bg-emerald-600/20 font-medium text-emerald-300"
+                    : "text-slate-300 hover:bg-slate-800",
+                ].join(" ")}
+              >
+                {item.label}
+              </button>
+            );
+          })}
         </nav>
 
         <div className="border-t border-slate-800">
-          <CsvUploader variant="compact" />
+          <FileUploader variant="compact" />
         </div>
 
         <p className="px-5 py-3 text-xs text-slate-500">

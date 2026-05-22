@@ -4,12 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import { ActivityTable } from "@/components/dashboard/ActivityTable";
-import { CsvUploader } from "@/components/dashboard/CsvUploader";
+import { FileUploader } from "@/components/dashboard/FileUploader";
 import { DashboardSkeleton } from "@/components/dashboard/DashboardSkeleton";
 import { EmissionsChart } from "@/components/dashboard/EmissionsChart";
 import { ErrorBanner } from "@/components/dashboard/ErrorBanner";
 import { KpiSummary } from "@/components/dashboard/KpiSummary";
-import { Sidebar } from "@/components/dashboard/Sidebar";
+import { Sidebar, type DashboardTab } from "@/components/dashboard/Sidebar";
 import {
   computeChartSlices,
   computeKpiSummary,
@@ -23,8 +23,23 @@ import {
   useEmissionStore,
 } from "@/store/useEmissionStore";
 
+const TAB_HEADERS: Record<
+  DashboardTab,
+  { title: string; subtitle: string }
+> = {
+  dashboard: {
+    title: "PCF 탄소 배출 대시보드",
+    subtitle: "활동 데이터 × 배출계수 기반 kgCO₂e 요약·시각화",
+  },
+  activities: {
+    title: "활동 데이터",
+    subtitle: "임포트된 활동량·단위·배출량 레코드 조회 및 필터",
+  },
+};
+
 export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<DashboardTab>("dashboard");
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
 
@@ -48,6 +63,7 @@ export default function Home() {
   const errorMessage = getEmissionErrorMessage(error);
   const hasCachedData = emissions.length > 0;
   const isInitialLoading = isLoading && !hasCachedData;
+  const header = TAB_HEADERS[activeTab];
 
   const periods = useMemo(() => getUniquePeriods(emissions), [emissions]);
 
@@ -72,7 +88,12 @@ export default function Home() {
 
   return (
     <div className="flex min-h-screen bg-slate-100 text-slate-900">
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar
+        open={sidebarOpen}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        onClose={() => setSidebarOpen(false)}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200 bg-white/90 px-4 backdrop-blur sm:px-6 lg:px-8">
@@ -86,9 +107,9 @@ export default function Home() {
               메뉴
             </button>
             <div>
-              <h1 className="text-lg font-semibold">PCF 탄소 배출 대시보드</h1>
+              <h1 className="text-lg font-semibold">{header.title}</h1>
               <p className="hidden text-xs text-slate-500 sm:block">
-                활동 데이터 × 배출계수 기반 kgCO₂e 분석
+                {header.subtitle}
               </p>
             </div>
           </div>
@@ -111,22 +132,33 @@ export default function Home() {
 
           {isInitialLoading ? (
             <DashboardSkeleton />
+          ) : activeTab === "dashboard" ? (
+            <>
+              <FileUploader variant="full" />
+              <KpiSummary kpi={kpi} />
+              <EmissionsChart slices={chartSlices} />
+            </>
           ) : (
             <>
-              <CsvUploader variant="full" />
-              <KpiSummary kpi={kpi} />
-
-              <div className="grid gap-6 xl:grid-cols-2">
-                <ActivityTable
-                  rows={filteredEmissions}
-                  periods={periods}
-                  periodFilter={periodFilter}
-                  categoryFilter={categoryFilter}
-                  onPeriodChange={setPeriodFilter}
-                  onCategoryChange={setCategoryFilter}
-                />
-                <EmissionsChart slices={chartSlices} />
-              </div>
+              <p className="text-sm text-slate-600">
+                총{" "}
+                <span className="font-semibold text-slate-900">
+                  {emissions.length.toLocaleString("ko-KR")}
+                </span>
+                건 · 필터 적용 시{" "}
+                <span className="font-semibold text-slate-900">
+                  {filteredEmissions.length.toLocaleString("ko-KR")}
+                </span>
+                건 표시
+              </p>
+              <ActivityTable
+                rows={filteredEmissions}
+                periods={periods}
+                periodFilter={periodFilter}
+                categoryFilter={categoryFilter}
+                onPeriodChange={setPeriodFilter}
+                onCategoryChange={setCategoryFilter}
+              />
             </>
           )}
         </main>
