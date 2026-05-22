@@ -2,11 +2,27 @@ import { create } from "zustand";
 
 import { fetchActivityEmissions } from "@/lib/api";
 import { parseActivityCsv } from "@/lib/parse-activity-csv";
+import { parseActivityExcel } from "@/lib/parse-activity-excel";
 import { preprocessActivities } from "@/lib/preprocess";
-import type { ActivityEmissionDto } from "@/lib/types";
+import type { ActivityEmissionDto, RawActivityRecord } from "@/lib/types";
 import { ApiError } from "@/lib/types";
 
 export type CsvUploadMode = "prepend" | "replace";
+
+function applyImportedRecords(
+  set: (partial: Partial<EmissionState>) => void,
+  get: () => EmissionState,
+  records: RawActivityRecord[],
+  mode: CsvUploadMode,
+) {
+  const imported = preprocessActivities(records);
+  const current = get().emissions;
+
+  set({
+    emissions: mode === "replace" ? imported : [...imported, ...current],
+    error: null,
+  });
+}
 
 interface EmissionState {
   emissions: ActivityEmissionDto[];
@@ -14,6 +30,7 @@ interface EmissionState {
   error: string | ApiError | null;
   fetchEmissions: () => Promise<void>;
   uploadCsvData: (rawText: string, mode?: CsvUploadMode) => void;
+  uploadExcelData: (data: ArrayBuffer, mode?: CsvUploadMode) => void;
 }
 
 function toStoreError(err: unknown): string | ApiError {
@@ -69,12 +86,11 @@ export const useEmissionStore = create<EmissionState>((set, get) => ({
 
   uploadCsvData: (rawText, mode = "prepend") => {
     const records = parseActivityCsv(rawText);
-    const imported = preprocessActivities(records);
-    const current = get().emissions;
+    applyImportedRecords(set, get, records, mode);
+  },
 
-    set({
-      emissions: mode === "replace" ? imported : [...imported, ...current],
-      error: null,
-    });
+  uploadExcelData: (data, mode = "prepend") => {
+    const records = parseActivityExcel(data);
+    applyImportedRecords(set, get, records, mode);
   },
 }));

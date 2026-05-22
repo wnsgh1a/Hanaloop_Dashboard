@@ -3,20 +3,31 @@
 import { useCallback, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
-import { ACTIVITY_CSV_TEMPLATE, CsvParseError } from "@/lib/parse-activity-csv";
+import { ACTIVITY_CSV_TEMPLATE } from "@/lib/parse-activity-csv";
+import { ActivityParseError } from "@/lib/parse-activity-rows";
 import {
   type CsvUploadMode,
   useEmissionStore,
 } from "@/store/useEmissionStore";
 
-const ACCEPTED_EXTENSIONS = [".csv", ".txt"];
-const MAX_FILE_SIZE_MB = 2;
+const ACCEPTED_EXTENSIONS = [".csv", ".txt", ".xlsx", ".xls"];
+const MAX_FILE_SIZE_MB = 5;
 
-interface CsvUploaderProps {
+interface FileUploaderProps {
   variant?: "full" | "compact";
 }
 
-export function CsvUploader({ variant = "full" }: CsvUploaderProps) {
+function getParseErrorMessage(err: unknown): string {
+  if (err instanceof ActivityParseError) {
+    return err.message;
+  }
+  if (err instanceof Error) {
+    return err.message;
+  }
+  return "파일을 처리하는 중 오류가 발생했습니다.";
+}
+
+export function FileUploader({ variant = "full" }: FileUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
@@ -24,8 +35,11 @@ export function CsvUploader({ variant = "full" }: CsvUploaderProps) {
   const [mode, setMode] = useState<CsvUploadMode>("prepend");
   const [isReading, setIsReading] = useState(false);
 
-  const uploadCsvData = useEmissionStore(
-    useShallow((state) => state.uploadCsvData),
+  const { uploadCsvData, uploadExcelData } = useEmissionStore(
+    useShallow((state) => ({
+      uploadCsvData: state.uploadCsvData,
+      uploadExcelData: state.uploadExcelData,
+    })),
   );
 
   const processFile = useCallback(
@@ -34,18 +48,18 @@ export function CsvUploader({ variant = "full" }: CsvUploaderProps) {
       setSuccessMessage(null);
 
       const lowerName = file.name.toLowerCase();
-      if (lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls")) {
-        setParseError(
-          "엑셀(.xlsx) 파일은 Excel에서 'CSV UTF-8(쉼표로 분리)(*.csv)'로 저장한 뒤 업로드해주세요.",
-        );
-        return;
-      }
+      const isExcel =
+        lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls");
+      const isText =
+        lowerName.endsWith(".csv") || lowerName.endsWith(".txt");
 
       const hasValidExt = ACCEPTED_EXTENSIONS.some((ext) =>
         lowerName.endsWith(ext),
       );
       if (!hasValidExt) {
-        setParseError("CSV(.csv) 또는 텍스트(.txt) 파일만 업로드할 수 있습니다.");
+        setParseError(
+          "CSV(.csv), 텍스트(.txt), 엑셀(.xlsx, .xls) 파일만 업로드할 수 있습니다.",
+        );
         return;
       }
 
@@ -55,37 +69,61 @@ export function CsvUploader({ variant = "full" }: CsvUploaderProps) {
       }
 
       setIsReading(true);
-      const reader = new FileReader();
 
-      reader.onload = () => {
-        try {
-          const rawText =
-            typeof reader.result === "string" ? reader.result : "";
-          uploadCsvData(rawText, mode);
-          setSuccessMessage(
-            `${file.name} — ${mode === "prepend" ? "기존 데이터 앞에 병합" : "전체 교체"} 완료. KPI·차트에 즉시 반영됩니다.`,
-          );
-        } catch (err) {
-          const message =
-            err instanceof CsvParseError
-              ? err.message
-              : err instanceof Error
-                ? err.message
-                : "파일을 처리하는 중 오류가 발생했습니다.";
-          setParseError(message);
-        } finally {
+      if (isExcel) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const buffer = reader.result;
+            if (!(buffer instanceof ArrayBuffer)) {
+              throw new ActivityParseError("엑셀 바이너리를 읽지 못했습니다.");
+            }
+            uploadExcelData(buffer, mode);
+            setSuccessMessage(
+              `${file.name} (엑셀) — ${mode === "prepend" ? "기존 데이터 앞에 병합" : "전체 교체"} 완료. KPI·차트에 즉시 반영됩니다.`,
+            );
+          } catch (err) {
+            setParseError(getParseErrorMessage(err));
+          } finally {
+            setIsReading(false);
+          }
+        };
+        reader.onerror = () => {
+          setParseError("엑셀 파일을 읽을 수 없습니다. 다시 시도해주세요.");
           setIsReading(false);
-        }
-      };
+        };
+        reader.readAsArrayBuffer(file);
+        return;
+      }
 
-      reader.onerror = () => {
-        setParseError("파일을 읽을 수 없습니다. 다시 시도해주세요.");
-        setIsReading(false);
-      };
+      if (isText) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const rawText =
+              typeof reader.result === "string" ? reader.result : "";
+            uploadCsvData(rawText, mode);
+            setSuccessMessage(
+              `${file.name} — ${mode === "prepend" ? "기존 데이터 앞에 병합" : "전체 교체"} 완료. KPI·차트에 즉시 반영됩니다.`,
+            );
+          } catch (err) {
+            setParseError(getParseErrorMessage(err));
+          } finally {
+            setIsReading(false);
+          }
+        };
+        reader.onerror = () => {
+          setParseError("파일을 읽을 수 없습니다. 다시 시도해주세요.");
+          setIsReading(false);
+        };
+        reader.readAsText(file, "UTF-8");
+        return;
+      }
 
-      reader.readAsText(file, "UTF-8");
+      setParseError("지원하지 않는 파일 형식입니다.");
+      setIsReading(false);
     },
-    [mode, uploadCsvData],
+    [mode, uploadCsvData, uploadExcelData],
   );
 
   const onDrop = useCallback(
@@ -115,8 +153,12 @@ export function CsvUploader({ variant = "full" }: CsvUploaderProps) {
 
   return (
     <section
-      aria-label="활동 데이터 CSV 업로드"
-      className={isCompact ? "px-3 pb-3" : "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"}
+      aria-label="활동 데이터 파일 업로드"
+      className={
+        isCompact
+          ? "px-3 pb-3"
+          : "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+      }
     >
       {!isCompact ? (
         <header className="mb-4">
@@ -124,12 +166,13 @@ export function CsvUploader({ variant = "full" }: CsvUploaderProps) {
             활동 데이터 임포트
           </h2>
           <p className="mt-1 text-xs text-slate-500">
-            과제용 CSV 양식을 가공 없이 업로드하면 배출계수가 자동 적용됩니다.
+            CSV·엑셀(.xlsx, .xls) 과제용 양식을 가공 없이 업로드하면 배출계수가
+            자동 적용됩니다.
           </p>
         </header>
       ) : (
         <p className="mb-2 px-2 text-xs font-medium text-slate-400">
-          CSV 임포트
+          CSV · 엑셀 임포트
         </p>
       )}
 
@@ -155,7 +198,9 @@ export function CsvUploader({ variant = "full" }: CsvUploaderProps) {
         onClick={() => inputRef.current?.click()}
         className={[
           "cursor-pointer rounded-xl border-2 border-dashed px-4 py-5 text-center transition-colors",
-          isCompact ? "border-slate-700 bg-slate-900/50 py-4" : "border-slate-200 bg-slate-50",
+          isCompact
+            ? "border-slate-700 bg-slate-900/50 py-4"
+            : "border-slate-200 bg-slate-50",
           isDragging
             ? isCompact
               ? "border-emerald-400 bg-emerald-950/40"
@@ -166,7 +211,7 @@ export function CsvUploader({ variant = "full" }: CsvUploaderProps) {
         <input
           ref={inputRef}
           type="file"
-          accept=".csv,.txt,text/csv,text/plain"
+          accept=".csv,.txt,.xlsx,.xls,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
           className="hidden"
           onChange={onFileChange}
         />
@@ -188,8 +233,13 @@ export function CsvUploader({ variant = "full" }: CsvUploaderProps) {
               : "mt-1 text-xs text-slate-500"
           }
         >
-          .csv · .txt (최대 {MAX_FILE_SIZE_MB}MB)
+          CSV · 엑셀(.xlsx, .xls) · 최대 {MAX_FILE_SIZE_MB}MB
         </p>
+        {!isCompact ? (
+          <p className="mt-2 text-[11px] font-medium text-emerald-700">
+            엑셀 파일 지원 — 첫 번째 시트를 자동으로 읽습니다
+          </p>
+        ) : null}
       </div>
 
       <div
@@ -208,7 +258,7 @@ export function CsvUploader({ variant = "full" }: CsvUploaderProps) {
         >
           <input
             type="radio"
-            name={`csv-mode-${variant}`}
+            name={`file-mode-${variant}`}
             checked={mode === "prepend"}
             onChange={() => setMode("prepend")}
             className="accent-emerald-600"
@@ -224,7 +274,7 @@ export function CsvUploader({ variant = "full" }: CsvUploaderProps) {
         >
           <input
             type="radio"
-            name={`csv-mode-${variant}`}
+            name={`file-mode-${variant}`}
             checked={mode === "replace"}
             onChange={() => setMode("replace")}
             className="accent-emerald-600"
@@ -236,7 +286,7 @@ export function CsvUploader({ variant = "full" }: CsvUploaderProps) {
       {!isCompact ? (
         <details className="mt-3 text-xs text-slate-500">
           <summary className="cursor-pointer font-medium text-slate-600">
-            CSV 양식 예시 보기
+            CSV 양식 예시 보기 (엑셀도 동일 열 구조)
           </summary>
           <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-100 p-3 text-[11px] text-slate-700">
             {ACTIVITY_CSV_TEMPLATE}
@@ -271,3 +321,6 @@ export function CsvUploader({ variant = "full" }: CsvUploaderProps) {
     </section>
   );
 }
+
+/** @deprecated FileUploader 사용 */
+export { FileUploader as CsvUploader };
