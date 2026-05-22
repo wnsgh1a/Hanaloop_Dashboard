@@ -23,8 +23,8 @@ function buildAssignmentFormatBuffer(): ArrayBuffer {
   const sheet = XLSX.utils.aoa_to_sheet([
     ["과제용 활동 데이터 양식"],
     [""],
-    ["활동 유형", "일자(원본)", "량", "단위", "설명"],
-    ["전기", "2024-Q1", 110, "kWh", "PCF-A"],
+    ["일자(원본)", "활동 유형", "설명", "량", "단위"],
+    ["2024-Q1", "전기", "한국전력", 110, "kWh"],
   ]);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, sheet, "data");
@@ -56,7 +56,7 @@ describe("parse-activity-excel", () => {
     expect(records[0].activityAmount).toBe(110);
     expect(records[0].unit).toBe("kWh");
     expect(records[0].period).toBe("2024-Q1");
-    expect(records[0].productId).toBe("PCF-A");
+    expect(records[0].productId).toBe("한국전력");
   });
 
   it("scoreHeaderRow — 키워드 2개 이상이면 헤더 후보", () => {
@@ -81,12 +81,34 @@ describe("parse-activity-excel", () => {
       ["카테고리", "활동량", "단위"],
       ["전기", 50, "kWh"],
     ];
-    const objects = sheetRowsToObjects(rows, 0);
+    const objects = sheetRowsToObjects(rows, 0, 2);
     expect(objects[0]).toEqual({
       카테고리: "전기",
       활동량: "50",
       단위: "kWh",
     });
+  });
+
+  it("활동 유형 원소재 + 설명 플라스틱 1/2 조합을 해석한다", () => {
+    const sheet = XLSX.utils.aoa_to_sheet([
+      ["안내"],
+      ["일자(원본)", "활동 유형", "설명", "량", "단위"],
+      ["2025-01-01", "전기", "한국전력", 110, "kWh"],
+      ["2025-02-01", "원소재", "플라스틱 1", 48, "kg"],
+      ["2025-03-01", "원소재", "플라스틱 2", 32, "kg"],
+    ]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, sheet, "Sheet1");
+    const buffer = XLSX.write(workbook, {
+      type: "array",
+      bookType: "xlsx",
+    }) as ArrayBuffer;
+
+    const records = parseActivityExcel(buffer);
+    expect(records).toHaveLength(3);
+    expect(records[0].category).toBe("electricity");
+    expect(records[1].category).toBe("plastic_raw_1");
+    expect(records[2].category).toBe("plastic_raw_2");
   });
 
   it("한글 헤더 엑셀을 지원한다", () => {

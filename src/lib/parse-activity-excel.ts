@@ -1,6 +1,10 @@
 import * as XLSX from "xlsx";
 
-import { ActivityParseError, parseActivityRows } from "./parse-activity-rows";
+import {
+  ActivityParseError,
+  parseActivityRows,
+  resolveCategoryFromActivityAndDescription,
+} from "./parse-activity-rows";
 import type { RawActivityRecord } from "./types";
 
 const HEADER_KEYWORDS = [
@@ -18,8 +22,16 @@ const HEADER_KEYWORDS = [
 
 const MIN_HEADER_KEYWORD_MATCHES = 2;
 
+const REFERENCE_TABLE_MARKERS = [
+  "배출계수",
+  "지원자 참고",
+  "참고용",
+  "항목",
+  "계수",
+] as const;
+
 const EXCEL_HEADER_TO_CANONICAL: Record<string, string> = {
-  활동유형: "category",
+  활동유형: "activityType",
   카테고리: "category",
   category: "category",
   activitycategory: "category",
@@ -35,7 +47,7 @@ const EXCEL_HEADER_TO_CANONICAL: Record<string, string> = {
   activity: "activityAmount",
   단위: "unit",
   unit: "unit",
-  설명: "productId",
+  설명: "description",
   productid: "productId",
   product_id: "productId",
   id: "id",
@@ -82,7 +94,12 @@ export function parseActivityExcel(data: ArrayBuffer): RawActivityRecord[] {
   });
 
   const headerRowIndex = findHeaderRowIndex(stringRows);
-  const records = sheetRowsToObjects(stringRows, headerRowIndex);
+  const headerEndCol = findHeaderEndColumn(stringRows[headerRowIndex] ?? []);
+  const records = sheetRowsToObjects(
+    stringRows,
+    headerRowIndex,
+    headerEndCol,
+  );
   const parseRows = objectsToCanonicalRows(records);
 
   return parseActivityRows(parseRows);
@@ -109,15 +126,26 @@ export function scoreHeaderRow(row: string[]): number {
   return score;
 }
 
+function findHeaderEndColumn(headerRow: string[]): number {
+  let lastIndex = -1;
+  headerRow.forEach((cell, index) => {
+    if (cell.trim()) {
+      lastIndex = index;
+    }
+  });
+  return lastIndex >= 0 ? lastIndex : headerRow.length - 1;
+}
+
 export function sheetRowsToObjects(
   rows: string[][],
   headerRowIndex: number,
+  headerEndCol: number,
 ): Record<string, unknown>[] {
-  const headerCells = rows[headerRowIndex] ?? [];
+  const headerCells = (rows[headerRowIndex] ?? []).slice(0, headerEndCol + 1);
   const objects: Record<string, unknown>[] = [];
 
   for (let r = headerRowIndex + 1; r < rows.length; r += 1) {
-    const row = rows[r] ?? [];
+    const row = (rows[r] ?? []).slice(0, headerEndCol + 1);
     if (!row.some((cell) => cell.trim().length > 0)) {
       continue;
     }
@@ -130,6 +158,11 @@ export function sheetRowsToObjects(
       }
       record[key] = cellToString(row[colIndex]);
     });
+
+    if (isReferenceTableRow(record) || isEmptyDataRow(record)) {
+      continue;
+    }
+
     objects.push(record);
   }
 
@@ -140,48 +173,98 @@ export function sheetRowsToObjects(
   return objects;
 }
 
+function isReferenceTableRow(record: Record<string, unknown>): boolean {
+  const values = Object.values(record).map((v) => cellToString(v));
+  const joined = values.join(" ");
+  return REFERENCE_TABLE_MARKERS.some((marker) => joined.includes(marker));
+}
+
+function isEmptyDataRow(record: Record<string, unknown>): boolean {
+  const amount = getRecordValue(record, ["량", "활동량", "activityAmount", "amount"]);
+  const activityType = getRecordValue(record, [
+    "활동 유형",
+    "활동유형",
+    "카테고리",
+    "category",
+  ]);
+  return !amount.trim() && !activityType.trim();
+}
+
 function objectsToCanonicalRows(
   records: Record<string, unknown>[],
 ): string[][] {
   const headerKeys = Object.keys(records[0] ?? {});
   const columnMap = buildColumnMap(headerKeys);
-
   const output: string[][] = [[...CANONICAL_HEADERS]];
 
   for (const record of records) {
-    output.push(
-      CANONICAL_HEADERS.map((canonical) => {
-        const sourceKey = columnMap[canonical];
-        if (!sourceKey) {
-          return "";
-        }
-        return cellToString(record[sourceKey]);
-      }),
-    );
+    const activityType = columnMap.activityType
+      ? cellToString(record[columnMap.activityType])
+      : columnMap.category
+        ? cellToString(record[columnMap.category])
+        : "";
+
+    const description = columnMap.description
+      ? cellToString(record[columnMap.description])
+      : "";
+
+    const category =
+      resolveCategoryFromActivityAndDescription(activityType, description) ??
+      resolveCategoryFromActivityAndDescription(description, activityType);
+
+    if (!category) {
+      const hint = [activityType, description].filter(Boolean).join(" / ");
+      throw new ActivityParseError(
+        `카테고리를 판별할 수 없습니다 (${hint || "빈 값"}). 활동 유형·설명(예: 전기, 원소재+플라스틱 1)을 확인해주세요.`,
+      );
+    }
+
+    const activityAmountKey = columnMap.activityAmount;
+    const unitKey = columnMap.unit;
+    const periodKey = columnMap.period;
+
+    output.push([
+      category,
+      activityAmountKey ? cellToString(record[activityAmountKey]) : "",
+      unitKey ? cellToString(record[unitKey]) : "",
+      periodKey ? cellToString(record[periodKey]) : "",
+      columnMap.id ? cellToString(record[columnMap.id]) : "",
+      description || (columnMap.productId ? cellToString(record[columnMap.productId]) : ""),
+    ]);
   }
 
   return output;
 }
 
-function buildColumnMap(
-  headerKeys: string[],
-): Partial<Record<(typeof CANONICAL_HEADERS)[number], string>> {
-  const map: Partial<Record<(typeof CANONICAL_HEADERS)[number], string>> = {};
+function buildColumnMap(headerKeys: string[]): Record<string, string> {
+  const map: Record<string, string> = {};
 
   for (const key of headerKeys) {
     const canonical = EXCEL_HEADER_TO_CANONICAL[normalizeHeaderKey(key)];
-    if (
-      canonical &&
-      CANONICAL_HEADERS.includes(
-        canonical as (typeof CANONICAL_HEADERS)[number],
-      ) &&
-      !map[canonical as (typeof CANONICAL_HEADERS)[number]]
-    ) {
-      map[canonical as (typeof CANONICAL_HEADERS)[number]] = key;
+    if (canonical && !map[canonical]) {
+      map[canonical] = key;
     }
   }
 
   return map;
+}
+
+function getRecordValue(
+  record: Record<string, unknown>,
+  candidateHeaders: string[],
+): string {
+  for (const header of candidateHeaders) {
+    if (record[header] !== undefined) {
+      return cellToString(record[header]);
+    }
+    const normalized = normalizeHeaderKey(header);
+    for (const key of Object.keys(record)) {
+      if (normalizeHeaderKey(key) === normalized) {
+        return cellToString(record[key]);
+      }
+    }
+  }
+  return "";
 }
 
 function normalizeHeaderKey(header: string): string {
