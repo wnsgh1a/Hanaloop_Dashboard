@@ -40,11 +40,13 @@ export function Sidebar({
 
       <aside
         className={[
-          "fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-slate-200 bg-slate-950 text-slate-100 transition-transform duration-200 lg:static lg:translate-x-0",
-          open ? "translate-x-0" : "-translate-x-full",
+          "z-50 flex h-screen w-64 shrink-0 flex-col border-r border-slate-200 bg-slate-950 text-slate-100",
+          "max-lg:fixed max-lg:inset-y-0 max-lg:left-0 max-lg:transition-transform max-lg:duration-200",
+          "lg:sticky lg:top-0 lg:translate-x-0",
+          open ? "max-lg:translate-x-0" : "max-lg:-translate-x-full",
         ].join(" ")}
       >
-        <div className="flex h-16 items-center gap-2 border-b border-slate-800 px-5">
+        <div className="flex h-16 shrink-0 items-center gap-2 border-b border-slate-800 px-5">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-sm font-bold text-white">
             H
           </span>
@@ -54,7 +56,10 @@ export function Sidebar({
           </div>
         </div>
 
-        <nav className="flex-1 space-y-1 p-3" aria-label="주 메뉴">
+        <nav
+          className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3"
+          aria-label="주 메뉴"
+        >
           {NAV_ITEMS.map((item) => {
             const isActive = activeTab === item.id;
             return (
@@ -76,13 +81,12 @@ export function Sidebar({
           })}
         </nav>
 
-        <div className="border-t border-slate-800">
+        <div className="mt-auto shrink-0 border-t border-slate-800">
           <FileUploader variant="compact" />
+          <p className="px-5 py-3 text-xs text-slate-500">
+            제품 탄소 발자국(PCF) 시각화
+          </p>
         </div>
-
-        <p className="px-5 py-3 text-xs text-slate-500">
-          제품 탄소 발자국(PCF) 시각화
-        </p>
       </aside>
     </>
   );
