@@ -24,4 +24,36 @@ body {
   .text-balance {
     text-wrap: balance;
   }
+
+  .skeleton-shimmer {
+    background: linear-gradient(
+      90deg,
+      rgb(229 231 235) 0%,
+      rgb(243 244 246) 45%,
+      rgb(229 231 235) 90%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .skeleton-shimmer {
+    background: linear-gradient(
+      90deg,
+      rgb(38 38 38) 0%,
+      rgb(64 64 64) 45%,
+      rgb(38 38 38) 90%
+    );
+    background-size: 200% 100%;
+  }
 }

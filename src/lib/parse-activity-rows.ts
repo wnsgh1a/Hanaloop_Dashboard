@@ -22,6 +22,10 @@ const HEADER_ALIASES: Record<string, keyof RawActivityRecord | "activityAmount">
     amount: "activityAmount",
     활동데이터량: "activityAmount",
     활동량: "activityAmount",
+    활동유형: "category",
+    일자원본: "period",
+    량: "activityAmount",
+    설명: "productId",
     unit: "unit",
     단위: "unit",
     period: "period",
@@ -35,12 +39,15 @@ const HEADER_ALIASES: Record<string, keyof RawActivityRecord | "activityAmount">
 const CATEGORY_ALIASES: Record<string, ActivityCategory> = {
   electricity: "electricity",
   전기: "electricity",
+  한국전력: "electricity",
   plastic_raw_1: "plastic_raw_1",
   "원소재 플라스틱 1": "plastic_raw_1",
   "플라스틱 1": "plastic_raw_1",
+  plastic1: "plastic_raw_1",
   plastic_raw_2: "plastic_raw_2",
   "원소재 플라스틱 2": "plastic_raw_2",
   "플라스틱 2": "plastic_raw_2",
+  plastic2: "plastic_raw_2",
   transport_truck: "transport_truck",
   "운송 트럭": "transport_truck",
   운송: "transport_truck",
@@ -166,12 +173,72 @@ function parseDataRow(
   return record;
 }
 
-function resolveCategory(raw: string): ActivityCategory | null {
-  const key = raw.trim().toLowerCase();
-  if (CATEGORY_ALIASES[key]) {
-    return CATEGORY_ALIASES[key];
+export function resolveCategory(raw: string): ActivityCategory | null {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return null;
   }
-  return CATEGORY_ALIASES[raw.trim()] ?? null;
+
+  const lower = trimmed.toLowerCase();
+  if (CATEGORY_ALIASES[lower]) {
+    return CATEGORY_ALIASES[lower];
+  }
+  if (CATEGORY_ALIASES[trimmed]) {
+    return CATEGORY_ALIASES[trimmed];
+  }
+
+  if (trimmed.includes("플라스틱 1") || trimmed.includes("플라스틱1")) {
+    return "plastic_raw_1";
+  }
+  if (trimmed.includes("플라스틱 2") || trimmed.includes("플라스틱2")) {
+    return "plastic_raw_2";
+  }
+  if (trimmed.includes("전기") || trimmed.includes("한국전력")) {
+    return "electricity";
+  }
+  if (trimmed.includes("운송")) {
+    return "transport_truck";
+  }
+
+  return null;
+}
+
+export function resolveCategoryFromActivityAndDescription(
+  activityType: string,
+  description: string,
+): ActivityCategory | null {
+  const type = activityType.trim();
+  const desc = description.trim();
+
+  if (desc) {
+    const fromDesc = resolveCategory(desc);
+    if (fromDesc) {
+      return fromDesc;
+    }
+  }
+
+  if (type) {
+    const fromType = resolveCategory(type);
+    if (fromType) {
+      return fromType;
+    }
+  }
+
+  if (type === "원소재" || type.includes("원소재")) {
+    if (desc.includes("1") && desc.includes("플라스틱")) {
+      return "plastic_raw_1";
+    }
+    if (desc.includes("2") && desc.includes("플라스틱")) {
+      return "plastic_raw_2";
+    }
+    return null;
+  }
+
+  if (type || desc) {
+    return resolveCategory(`${type} ${desc}`.trim());
+  }
+
+  return null;
 }
 
 function resolveUnit(raw: string, category: ActivityCategory): ActivityUnit {
