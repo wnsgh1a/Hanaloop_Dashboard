@@ -48,6 +48,27 @@ export function getUniquePeriods(emissions: ActivityEmissionDto[]): string[] {
   return Array.from(new Set(emissions.map((e) => e.period))).sort();
 }
 
+const CATEGORY_ORDER: ActivityCategory[] = [
+  "electricity",
+  "plastic_raw_1",
+  "plastic_raw_2",
+  "transport_truck",
+];
+
+export const CATEGORY_LABELS: Record<ActivityCategory, string> = {
+  electricity: "전기",
+  plastic_raw_1: "원소재 플라스틱 1",
+  plastic_raw_2: "원소재 플라스틱 2",
+  transport_truck: "운송 트럭",
+};
+
+export function getUniqueCategories(
+  emissions: ActivityEmissionDto[],
+): ActivityCategory[] {
+  const present = new Set(emissions.map((e) => e.category));
+  return CATEGORY_ORDER.filter((category) => present.has(category));
+}
+
 export interface KpiSummary {
   totalKgCO2e: number;
   byGroup: Record<ActivityGroup, number>;

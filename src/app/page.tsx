@@ -11,7 +11,6 @@ import { ErrorBanner } from "@/components/dashboard/ErrorBanner";
 import { KpiSummary } from "@/components/dashboard/KpiSummary";
 import { Sidebar, type DashboardTab } from "@/components/dashboard/Sidebar";
 import {
-  computeChartSlices,
   computeKpiSummary,
   filterEmissions,
   getUniquePeriods,
@@ -76,15 +75,7 @@ export default function Home() {
     [emissions, periodFilter, categoryFilter],
   );
 
-  const kpi = useMemo(
-    () => computeKpiSummary(filteredEmissions),
-    [filteredEmissions],
-  );
-
-  const chartSlices = useMemo(
-    () => computeChartSlices(filteredEmissions),
-    [filteredEmissions],
-  );
+  const kpi = useMemo(() => computeKpiSummary(emissions), [emissions]);
 
   return (
     <div className="flex min-h-screen items-start bg-slate-100 text-slate-900">
@@ -136,7 +127,7 @@ export default function Home() {
             <>
               <ActivityImportPanel />
               <KpiSummary kpi={kpi} />
-              <EmissionsChart slices={chartSlices} isLoading={isLoading} />
+              <EmissionsChart emissions={emissions} isLoading={isLoading} />
             </>
           ) : (
             <>
