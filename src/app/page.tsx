@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import { ActivityTable } from "@/components/dashboard/ActivityTable";
-import { FileUploader } from "@/components/dashboard/FileUploader";
+import { ActivityImportPanel } from "@/components/dashboard/ActivityImportPanel";
 import { DashboardSkeleton } from "@/components/dashboard/DashboardSkeleton";
 import { EmissionsChart } from "@/components/dashboard/EmissionsChart";
 import { ErrorBanner } from "@/components/dashboard/ErrorBanner";
@@ -134,9 +134,9 @@ export default function Home() {
             <DashboardSkeleton />
           ) : activeTab === "dashboard" ? (
             <>
-              <FileUploader variant="full" />
+              <ActivityImportPanel />
               <KpiSummary kpi={kpi} />
-              <EmissionsChart slices={chartSlices} />
+              <EmissionsChart slices={chartSlices} isLoading={isLoading} />
             </>
           ) : (
             <>

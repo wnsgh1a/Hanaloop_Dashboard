@@ -15,6 +15,8 @@ const MAX_FILE_SIZE_MB = 5;
 
 interface FileUploaderProps {
   variant?: "full" | "compact";
+  /** ActivityImportPanel 내부용 — 카드·헤더 중복 제거 */
+  embedded?: boolean;
 }
 
 function getParseErrorMessage(err: unknown): string {
@@ -27,7 +29,10 @@ function getParseErrorMessage(err: unknown): string {
   return "파일을 처리하는 중 오류가 발생했습니다.";
 }
 
-export function FileUploader({ variant = "full" }: FileUploaderProps) {
+export function FileUploader({
+  variant = "full",
+  embedded = false,
+}: FileUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
@@ -150,6 +155,7 @@ export function FileUploader({ variant = "full" }: FileUploaderProps) {
   );
 
   const isCompact = variant === "compact";
+  const showCardShell = !isCompact && !embedded;
 
   return (
     <section
@@ -157,10 +163,12 @@ export function FileUploader({ variant = "full" }: FileUploaderProps) {
       className={
         isCompact
           ? "px-3 pb-3"
-          : "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+          : embedded
+            ? ""
+            : "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
       }
     >
-      {!isCompact ? (
+      {showCardShell ? (
         <header className="mb-4">
           <h2 className="text-base font-semibold text-slate-900">
             활동 데이터 임포트
@@ -170,7 +178,7 @@ export function FileUploader({ variant = "full" }: FileUploaderProps) {
             자동 적용됩니다.
           </p>
         </header>
-      ) : (
+      ) : !isCompact && embedded ? null : (
         <p className="mb-2 px-2 text-xs font-medium text-slate-400">
           CSV · 엑셀 임포트
         </p>
