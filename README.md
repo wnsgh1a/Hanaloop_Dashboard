@@ -402,6 +402,7 @@ public/
 | [Tailwind CSS](https://github.com/tailwindlabs/tailwindcss) | 3.4.x | 스타일링 | MIT |
 | [Zustand](https://github.com/pmndrs/zustand) | 5.x | 클라이언트 상태 | MIT |
 | [Recharts](https://github.com/recharts/recharts) | 3.x | Pie/Bar 차트 | MIT |
+| [swagger-ui-react](https://github.com/swagger-api/swagger-ui) | 5.x | `/api-docs` Swagger UI | Apache-2.0 |
 | [ESLint](https://github.com/eslint/eslint) | 8.x | 린트 (dev) | MIT |
 
 **폰트**: `layout.tsx`의 Geist(local font)는 Vercel 배포 템플릿 기본 리소스를 사용합니다.
@@ -434,7 +435,23 @@ public/
 | `ActivityEmissionDto` | 전처리 DTO (`emissionFactor`, `emissionsKgCO2e`, `label` 포함) |
 | `ApiError` | 15% Mock 실패 응답 (`503` + `name`/`message`) |
 
-### Swagger UI / Postman에서 불러오기
+### 브라우저 Swagger UI (내장)
+
+개발·평가 시 앱을 실행한 뒤 아래 주소로 접속합니다.
+
+| URL | 설명 |
+|-----|------|
+| [http://localhost:3000/api-docs](http://localhost:3000/api-docs) | Swagger UI 전용 페이지 |
+| [http://localhost:3000/swagger](http://localhost:3000/swagger) | `/api-docs`로 리다이렉트 |
+
+```bash
+npm install          # swagger-ui-react 포함
+npm run dev
+```
+
+명세 원본: `docs/openapi.json` (페이지에서 동일 파일 import)
+
+### Swagger Editor / Postman에서 불러오기
 
 1. [Swagger Editor](https://editor.swagger.io/) → **File → Import file** → `docs/openapi.json`
 2. Postman → **Import** → `docs/openapi.json` → Collection 생성
